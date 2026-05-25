@@ -50,12 +50,15 @@ async def calculate_total_revenue(property_id: str, tenant_id: str) -> Dict[str,
                 
                 query = text("""
                     SELECT 
-                        property_id,
-                        SUM(total_amount) as total_revenue,
+                        r.property_id,
+                        SUM(r.total_amount) as total_revenue,
                         COUNT(*) as reservation_count
-                    FROM reservations 
-                    WHERE property_id = :property_id AND tenant_id = :tenant_id
-                    GROUP BY property_id
+                    FROM reservations r
+                    JOIN properties p ON r.property_id = p.id AND r.tenant_id = p.tenant_id
+                    WHERE r.property_id = :property_id AND r.tenant_id = :tenant_id
+                      AND r.check_in_date AT TIME ZONE p.timezone >= '2024-03-01 00:00:00'
+                      AND r.check_in_date AT TIME ZONE p.timezone < '2024-04-01 00:00:00'
+                    GROUP BY r.property_id
                 """)
                 
                 result = await session.execute(query, {
@@ -65,7 +68,7 @@ async def calculate_total_revenue(property_id: str, tenant_id: str) -> Dict[str,
                 row = result.fetchone()
                 
                 if row:
-                    total_revenue = Decimal(str(row.total_revenue))
+                    total_revenue = Decimal(str(row.total_revenue)).quantize(Decimal('0.01'))
                     return {
                         "property_id": property_id,
                         "tenant_id": tenant_id,
